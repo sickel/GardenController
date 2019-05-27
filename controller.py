@@ -31,7 +31,6 @@ turnofftimer=None
 TIMEFORMAT="%Y/%m/%d %H:%M:%S"
 DHTWAIT=30
 SQL="insert into measure(sensorid,value,type,aux,payload) values(%s,%s,%s,%s,%s)"
-SENSORID=901;
 DBWAIT=10*60
 lastdb=0
 
