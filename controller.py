@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 import RPi.GPIO as GPIO # Import Raspberry Pi GPIO library
 import time,threading
