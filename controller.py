@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 import RPi.GPIO as GPIO # Import Raspberry Pi GPIO library
 import time,threading
+import os
 import sys
 import Adafruit_DHT
-
+import syslog
 from mikezlcd import *
 lcd = lcd_module(2004, 25, 24, 22, 18, 17,23)
 lcd.disp(0,0,"Booting...")
@@ -13,17 +14,19 @@ lcd.disp(0,0,"Booting...")
 import psycopg2 
 try:
     f = open("dbconn.txt", "r")
-    dsn=f.readline()
+    dsn=f.readline().strip()
     SENSORID=f.readline()
     f.close()
 except:
-    print("Could not open dbconn.txt")
+    syslog.syslog("Could not open dbconn.txt")
     sys.exit(2)
-if dsn !='NODB':
+if  dsn!= 'NODB':
     CONN = psycopg2.connect(dsn)
     CUR=CONN.cursor()
+    syslog.syslog("Connected to database")
     DBWAIT=10*60
 else:
+    syslog.syslog("Not using database")
     CONN=None
     CUR=None
     DBWAIT=0
@@ -53,10 +56,9 @@ def button_callback(channel): # Being run when BTPIN is pulled high
     global t
     
     now=time.time()
-    print(fmttime(now))
+    #print(fmttime(now))
     if now - lastpush < 1: # Debouching
-        print("whopsa, wait a moment")
-        print(now-lastpush)
+        syslog.syslog("Early push detected")
         return
     lastpush=now
     state=GPIO.input(LEDPIN)
@@ -64,7 +66,7 @@ def button_callback(channel): # Being run when BTPIN is pulled high
         GPIO.output(LEDPIN,GPIO.HIGH)
         turnofftimer = threading.Timer(ONTIME, turnoff)
         turnofftimer.start() 
-        print("ON")
+        syslog.syslog("Turned ON")
     else:
         turnoff()
         
@@ -76,14 +78,14 @@ def handleht(hum,temp,mintemp,maxtemp):
     global payload
     now=time.time()
     if DBWAIT > 0 and lastdb+DBWAIT < now:
-        print("Store")
+        syslog.syslog("Storing data in DB")
         payload+=1
         CUR.execute(SQL,(SENSORID,round(hum,2),104,99,payload))
         CUR.execute(SQL,(SENSORID,round(temp,2),116,99,payload))
         CONN.commit()
         lastdb=now
-    print("Humidity :    {:4.1f} %".format(hum))
-    print("Temperature : {:4.1f} °C".format(temp))
+    syslog.syslog("Humidity :    {:4.1f} %".format(hum))
+    syslog.syslog("Temperature : {:4.1f} °C".format(temp))
     lcd.disp(0,0,"Temp {:5.1f} oC".format(temp))
     lcd.disp(0,1,"     {:5.1f} - {:5.1f}".format(mintemp,maxtemp))
     lcd.disp(0,2,"Fukt {:5.1f} %".format(hum))
@@ -91,8 +93,8 @@ def handleht(hum,temp,mintemp,maxtemp):
     
 def turnoff():
     global LEDPIN
-    print("OFF")
-    print(fmttime(time.time()))
+    syslog.syslog("Turning OFF")
+    #print(fmttime(time.time()))
     GPIO.output(LEDPIN,GPIO.LOW)
     if not turnofftimer == None:
         turnofftimer.cancel() # Do now want to have a timer hanging around to turn off the led later on.
@@ -109,7 +111,7 @@ def readDHT(evt):
             return()
         now=time.time()
         if now-dhtread>DHTWAIT: # Cannot sleep for DHTWAIT as it will stop processing of ev
-            print("DHTread:")
+            syslog.syslog("Reading DHT")
             dhtread=now
             try:
                 
@@ -123,11 +125,11 @@ def readDHT(evt):
                 if humidity>75:
                     state=GPIO.input(LEDPIN)
                     if not state==0:
-                        print("Too humid, turning off")
+                        syslog.syslog("Too humid, turning off")
                         turnoff()
             except:
-                print(fmttime(time.time()))
-                #print("Problem reading DHT")
+                #syslog.syslog(fmttime(time.time()))
+                syslog.syslog("Problem reading DHT")
                 pass
         time.sleep(1)
     
@@ -142,7 +144,15 @@ GPIO.add_event_detect(BTPIN,GPIO.RISING,callback=button_callback)   # Setup even
 stopDHT=threading.Event()
 DHTthread=threading.Thread(target = readDHT, args = (stopDHT, ))
 DHTthread.start()
-message = input("Press enter to quit\n\n") # Run until someone presses enter
+syslog.syslog("Up running")
+while True:
+    time.sleep(1)
+    try:
+        os.remove("/tmp/STOPME")
+        syslog.syslog("Quitting now")
+        break
+    except:
+        pass
 stopDHT.set()
 DHTthread.join()
 turnoff()
