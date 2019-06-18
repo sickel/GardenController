@@ -11,12 +11,22 @@ lcd.disp(0,0,"Booting...")
 
 
 import psycopg2 
-f = open("dbconn.txt", "r")
-dsn=f.readline()
-SENSORID=f.readline()
-f.close()
-CONN = psycopg2.connect(dsn)
-CUR=CONN.cursor()
+try:
+    f = open("dbconn.txt", "r")
+    dsn=f.readline()
+    SENSORID=f.readline()
+    f.close()
+except:
+    print("Could not open dbconn.txt")
+    sys.exit(2)
+if dsn !='NODB':
+    CONN = psycopg2.connect(dsn)
+    CUR=CONN.cursor()
+    DBWAIT=10*60
+else:
+    CONN=None
+    CUR=None
+    DBWAIT=0
 DHTSENSOR = Adafruit_DHT.DHT22
 DHTPIN = 4
 BTPIN=7
@@ -31,7 +41,6 @@ turnofftimer=None
 TIMEFORMAT="%Y/%m/%d %H:%M:%S"
 DHTWAIT=30
 SQL="insert into measure(sensorid,value,type,aux,payload) values(%s,%s,%s,%s,%s)"
-DBWAIT=10*60
 lastdb=0
 
 
@@ -66,7 +75,7 @@ def handleht(hum,temp,mintemp,maxtemp):
     global lastdb
     global payload
     now=time.time()
-    if lastdb+DBWAIT < now:
+    if DBWAIT > 0 and lastdb+DBWAIT < now:
         print("Store")
         payload+=1
         CUR.execute(SQL,(SENSORID,round(hum,2),104,99,payload))
