@@ -13,7 +13,7 @@ lcd.disp(0,0,"Booting...")
 
 import psycopg2 
 try:
-    f = open("dbconn.txt", "r")
+    f = open("/etc/dbconn.txt", "r")
     dsn=f.readline().strip()
     SENSORID=f.readline()
     f.close()
